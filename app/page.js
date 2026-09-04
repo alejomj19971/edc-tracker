@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import * as XLSX from "xlsx";
 import { supabase } from "@/lib/supabaseClient";
+import GanttChart from "./components/GanttChart";
 
 const TABLE = "actividades";
 
@@ -90,6 +91,7 @@ export default function Home() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saveState, setSaveState] = useState("idle"); // idle | saving | error
+  const [view, setView] = useState("tabla"); // tabla | cronograma
   // Empieza en `undefined` (todavia no sabemos el tiempo restante) para que
   // el primer render en el servidor y en el cliente coincidan exactamente.
   // El valor real solo se calcula dentro de useEffect, es decir, despues de
@@ -227,7 +229,7 @@ export default function Home() {
         color: "#EDE9F7",
         padding: "28px 32px",
         borderRadius: "14px",
-        maxWidth: "1080px",
+        maxWidth: view === "cronograma" ? "1400px" : "1080px",
         margin: "0 auto",
         border: "1px solid rgba(255,255,255,0.06)",
       }}
@@ -248,6 +250,9 @@ export default function Home() {
         .sa-add-row-btn:hover { border-color: #8B5CF6; border-style: solid; background: rgba(139,92,246,0.08); color: #F5F2FC; }
         .sa-export-btn { background: transparent; color: #C9BFEA; border: 1.5px solid rgba(139,92,246,0.4); padding: 8px 14px; border-radius: 6px; font-size: 13px; cursor: pointer; font-weight: 600; }
         .sa-export-btn:hover { border-color: #8B5CF6; background: rgba(139,92,246,0.12); }
+        .sa-tab-btn { background: transparent; color: #9C93B5; border: 1.5px solid rgba(255,255,255,0.08); padding: 7px 14px; border-radius: 20px; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+        .sa-tab-btn:hover { border-color: rgba(139,92,246,0.4); color: #EDE9F7; }
+        .sa-tab-btn.active { background: rgba(139,92,246,0.18); border-color: #8B5CF6; color: #F5F2FC; }
         .sa-del-btn { background: transparent; border: none; color: #6B6180; cursor: pointer; padding: 4px 6px; border-radius: 4px; opacity: 0; transition: opacity .12s; font-size: 13px; }
         .sa-row:hover .sa-del-btn { opacity: 1; }
         .sa-del-btn:hover { color: #FF6B81; background: rgba(255,77,109,0.14); }
@@ -277,7 +282,7 @@ export default function Home() {
         .sa-print-table th, .sa-print-table td { border: 1px solid #ccc; padding: 6px 8px; font-size: 12px; text-align: left; }
         .sa-print-table table { border-collapse: collapse; width: 100%; }
         @media print {
-          .sa-app > *:not(.sa-print-table) { display: none !important; }
+          .sa-app > *:not(.sa-print-table):not(.sa-gantt) { display: none !important; }
           .sa-app { box-shadow: none !important; padding: 0 !important; background: #fff !important; border: none !important; }
           .sa-print-table { display: block !important; }
         }
@@ -298,14 +303,35 @@ export default function Home() {
           </p>
         </div>
       </div>
+      <div style={{ display: "flex", gap: "10px", marginBottom: "14px" }}>
+        <button
+          className={`sa-tab-btn${view === "tabla" ? " active" : ""}`}
+          onClick={() => setView("tabla")}
+        >
+          Tabla
+        </button>
+        <button
+          className={`sa-tab-btn${view === "cronograma" ? " active" : ""}`}
+          onClick={() => setView("cronograma")}
+        >
+          Cronograma
+        </button>
+      </div>
       <div style={{ display: "flex", gap: "10px", marginBottom: "22px" }}>
         <button className="sa-export-btn" onClick={exportExcel}>
           Exportar Excel
         </button>
         <button className="sa-export-btn" onClick={exportPDF}>
-          Exportar PDF
+          {view === "cronograma" ? "Exportar cronograma a PDF" : "Exportar PDF"}
         </button>
       </div>
+      {view === "cronograma" && (
+        <p style={{ fontSize: "11.5px", color: "#6B6180", margin: "-14px 0 22px 0" }}>
+          El PDF se configura en horizontal automaticamente. Si tu navegador
+          lo saca vertical de todas formas, en el dialogo de impresion cambia
+          "Diseño" / "Layout" a Horizontal antes de guardar.
+        </p>
+      )}
       <div className="sa-progress">
         <div className="sa-progress-row">
           <span className="sa-progress-label">Tareas completadas</span>
@@ -344,7 +370,13 @@ export default function Home() {
           <p style={{ fontSize: "15px", color: "#FF3EA5", margin: 0 }}>El plazo del 10 de octubre ya se cumplió</p>
         )}
       </div>
-      {!loading && sortedRows.length === 0 ? (
+      {loading ? (
+        <div style={{ padding: "32px 0", textAlign: "center", color: "#6B6180", fontSize: "13.5px" }}>
+          Cargando…
+        </div>
+      ) : view === "cronograma" ? (
+        <GanttChart rows={sortedRows} />
+      ) : sortedRows.length === 0 ? (
         <div style={{ padding: "32px 0", textAlign: "center" }}>
           <p style={{ color: "#6B6180", fontSize: "13.5px", marginBottom: "16px" }}>
             Aun no hay actividades registradas.
@@ -352,10 +384,6 @@ export default function Home() {
           <button className="sa-add-row-btn" style={{ width: "auto", padding: "10px 20px" }} onClick={addRow}>
             + Agregar primera actividad
           </button>
-        </div>
-      ) : loading ? (
-        <div style={{ padding: "32px 0", textAlign: "center", color: "#6B6180", fontSize: "13.5px" }}>
-          Cargando…
         </div>
       ) : (
         <>
